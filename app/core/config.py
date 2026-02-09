@@ -22,18 +22,7 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     DB_NAME: str
-
-    SMTP_TLS: bool = True
-    SMTP_PORT: int
-    SMTP_HOST: str
-    SMTP_EMAIL: str
-    SMTP_PASSWORD: str
-    EMAILS_FROM_EMAIL: str
-    EMAILS_FROM_NAME: str
-
-    WP_DEFAULT_API_KEY: str = ""
-    WP_DEFAULT_API_SECRET: str = ""
-
+    
     # Gmail Integration
     GMAIL_CLIENT_ID: str = ""
     GMAIL_CLIENT_SECRET: str = ""
