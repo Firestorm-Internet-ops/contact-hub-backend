@@ -60,6 +60,12 @@ def create_email(
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
 
+    if submission.status == "closed":
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot reply to a closed ticket",
+        )
+
     if not submission.submitter_email:
         raise HTTPException(
             status_code=422,
