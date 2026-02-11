@@ -230,11 +230,11 @@ print_health() {
     printf "\n${BOLD}[ HEALTH CHECK ]${NC}\n"
 
     local code
-    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8000/health 2>/dev/null)
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8080/health 2>/dev/null)
 
     if [[ "$code" == "200" ]]; then
         local body
-        body=$(curl -s --max-time 3 http://localhost:8000/health 2>/dev/null)
+        body=$(curl -s --max-time 3 http://localhost:8080/health 2>/dev/null)
         printf "  GET /health : ${GREEN}%s${NC} — %s\n" "$code" "$body"
     elif [[ "$code" == "000" ]]; then
         printf "  GET /health : ${RED}UNREACHABLE${NC} (connection refused or timeout)\n"
