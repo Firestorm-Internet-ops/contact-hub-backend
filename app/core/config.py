@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     PROJECT_DESCRIPTION: str
     PROJECT_VERSION: str
     API_V1_STR: str
-    ADMIN_EMAIL: str = "admin@hub.local"
-    ADMIN_PASSWORD: str = "admin123!"
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
     SECRET_KEY: str
     ENCRYPTION_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
@@ -24,13 +24,13 @@ class Settings(BaseSettings):
     DB_NAME: str
     
     # Gmail Integration
-    GMAIL_CLIENT_ID: str = ""
-    GMAIL_CLIENT_SECRET: str = ""
-    GMAIL_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/oauth/callback"
-    GMAIL_SCOPES: str = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify"
-    GMAIL_SENDER_EMAIL: str = ""
-    GMAIL_POLL_INTERVAL_HOURS: int = 3
-    FRONTEND_URL: str = "http://localhost:5173"
+    GMAIL_CLIENT_ID: str
+    GMAIL_CLIENT_SECRET: str
+    GMAIL_REDIRECT_URI: str
+    GMAIL_SCOPES: str
+    GMAIL_SENDER_EMAIL: str
+    GMAIL_POLL_INTERVAL_HOURS: int
+    FRONTEND_URL: str
 
     CRYPT_ALGORITHM: str
 
