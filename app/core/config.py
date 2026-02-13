@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     GMAIL_SCOPES: str = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify"
     GMAIL_SENDER_EMAIL: str = ""
     GMAIL_POLL_INTERVAL_HOURS: int = 3
+    FRONTEND_URL: str = "http://localhost:5173"
 
     CRYPT_ALGORITHM: str
 

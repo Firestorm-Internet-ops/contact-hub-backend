@@ -75,7 +75,7 @@ def gmail_oauth_authorize(
 
 @router.get("/oauth/callback")
 def gmail_oauth_callback(
-    code: str = Query(..., description="Authorization code from Google"),
+    code: str = Query(None, description="Authorization code from Google"),
     state: str = Query(None, description="State parameter for CSRF protection"),
     error: str = Query(None, description="Error from OAuth flow"),
     db: Session = Depends(deps.get_db),
@@ -86,7 +86,8 @@ def gmail_oauth_callback(
     """
     if error:
         logger.error(f"Gmail OAuth error: {error}")
-        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+        frontend_url = settings.FRONTEND_URL.rstrip("/")
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail_error={error}")
 
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
@@ -117,15 +118,14 @@ def gmail_oauth_callback(
 
         logger.info(f"Gmail OAuth credentials saved for {user_email}")
 
-        return {
-            "success": True,
-            "message": f"Gmail OAuth completed successfully for {user_email}",
-            "email": user_email
-        }
+        frontend_url = settings.FRONTEND_URL.rstrip("/")
+        return RedirectResponse(url=f"{frontend_url}/settings")
 
     except Exception as e:
         logger.exception("Gmail OAuth callback error")
-        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
+        frontend_url = settings.FRONTEND_URL.rstrip("/")
+        error_msg = str(e).replace(" ", "+")
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail_error={error_msg}")
 
 
 @router.get("/status")
