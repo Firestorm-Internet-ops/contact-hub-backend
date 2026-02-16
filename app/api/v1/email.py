@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app import models, schemas
 from app.core.config import settings
+from app.core.cache import cache_get, cache_set, cache_delete, cache_delete_pattern
 from app.services.gmail import get_gmail_client_from_db, strip_quoted_text
 from app.services.email_templates import build_initial_reply_email, build_admin_reply_email
 
@@ -40,6 +42,7 @@ def create_email(
     email_in: schemas.EmailCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
+    redis: Redis = Depends(deps.get_redis),
 ):
     """
     Send an email for a submission using Gmail API.
@@ -139,19 +142,22 @@ def create_email(
 
         in_reply_to = last_email.message_id if last_email else None
         thread_id = submission.gmail_thread_id
-        
+
         html_body = build_admin_reply_email(email_in.body, ticket_id=submission.id)
 
     # 3. Build the email record (message_id will be updated after send with RFC 2822 Message-ID)
     to_email = submission.submitter_email
     from_email = settings.GMAIL_SENDER_EMAIL
 
+    # Store body with line breaks preserved as HTML
+    stored_body = email_in.body.replace('\n', '<br>') if email_in.direction == 'outbound' else email_in.body
+
     email = models.EmailThread(
         submission_id=email_in.submission_id,
         user_id=current_user.id,
         direction=email_in.direction,
         subject=subject,
-        body=email_in.body,  # Store original body, not HTML
+        body=stored_body,
         message_id=None,  # Will be set after send with RFC 2822 Message-ID
         to_email=to_email,
         from_email=from_email,
@@ -187,6 +193,9 @@ def create_email(
             # Update submission thread_id if not set (first email)
             if not submission.gmail_thread_id:
                 submission.gmail_thread_id = gmail_data.get("threadId")
+
+            # Update status to waiting_customer after successful reply
+            submission.status = "waiting_customer"
         else:
             logger.error(
                 "Gmail send failed to %s for submission %s: %s",
@@ -206,7 +215,12 @@ def create_email(
         logger.exception("Failed to save email record")
         raise HTTPException(status_code=500, detail="Failed to save email record")
 
-    # 6. If sending failed, inform the caller
+    # 6. Invalidate caches
+    cache_delete(redis, f"api:emails:submission:{email_in.submission_id}")
+    cache_delete(redis, f"api:submission:{email_in.submission_id}")
+    cache_delete_pattern(redis, "api:submissions:*")
+
+    # 7. If sending failed, inform the caller
     if email.status == "failed":
         raise HTTPException(
             status_code=502,
@@ -227,7 +241,13 @@ def list_emails(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
+    redis: Redis = Depends(deps.get_redis),
 ):
+    cache_key = f"api:emails:submission:{submission_id}"
+    cached = cache_get(redis, cache_key)
+    if cached is not None:
+        return cached
+
     emails = (
         db.query(models.EmailThread)
         .filter_by(submission_id=submission_id)
@@ -236,13 +256,18 @@ def list_emails(
         .limit(limit)
         .all()
     )
+
+    response_data = [schemas.EmailResponse.model_validate(e).model_dump(mode="json") for e in emails]
+    cache_set(redis, cache_key, response_data, 60)
+
     logger.info(f"Fetched {len(emails)} emails for submission {submission_id}")
-    return emails
+    return response_data
 
 @router.post("/sync-gmail")
 def sync_gmail_inbox(
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
+    redis: Redis = Depends(deps.get_redis),
 ):
     """
     Manually trigger Gmail inbox sync to fetch customer replies.
@@ -377,6 +402,11 @@ def sync_gmail_inbox(
         logger.info(f"Saved inbound reply for submission {submission.id}, gmail_message_id={msg_id}")
 
     db.commit()
+
+    # Invalidate all email/submission caches after sync
+    cache_delete_pattern(redis, "api:emails:*")
+    cache_delete_pattern(redis, "api:submissions:*")
+    cache_delete_pattern(redis, "api:submission:*")
 
     result = {
         "status": "success",

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.api import deps
+from app.core.cache import cache_delete_pattern
 from app.services.wordpress import WordPressClient
 from app.core.redis_client import get_redis_client
 
@@ -264,7 +265,10 @@ def sync_single_site(
         raise HTTPException(status_code=404, detail="Site not found")
     logger.info("Manual sync started for site %s", site.id)
     try:
-        return sync_site_submissions(db, site, redis_client)
+        result = sync_site_submissions(db, site, redis_client)
+        cache_delete_pattern(redis_client, "api:submissions:*")
+        cache_delete_pattern(redis_client, "api:submission:*")
+        return result
     except Exception:
         logger.exception("Unhandled error during sync for site %s", site.id)
         raise HTTPException(status_code=500, detail="Sync failed due to an internal error")
@@ -287,6 +291,9 @@ def sync_all_sites(
     for site in sites:
         result = sync_site_submissions(db, site, redis_client)
         results.append(result)
+
+    cache_delete_pattern(redis_client, "api:submissions:*")
+    cache_delete_pattern(redis_client, "api:submission:*")
 
     logger.info("Manual sync completed for %s sites", len(sites))
     return results
